@@ -15,6 +15,9 @@ printf "${BGreen}  /        \  |  /  |_> >  ___/|  | \/  |_|  |  /  Y Y  \  \  \
 printf "${BGreen} /_______  /____/|   __/ \___  >__|  |____/____/|__|_|  /__|\___  >${Color_Off}\n"
 printf "${BGreen}         \/      |__|        \/ http://superlumic.com \/        \/ ${Color_Off}\n\n"
 
+setStatusMessage "Install sudo using root"
+su root -c "apt-get install sudo"
+
 setStatusMessage "Checking if we need to ask for a sudo password"
 
 sudo -v
