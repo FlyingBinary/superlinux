@@ -1,5 +1,248 @@
 #!/bin/bash -v
 
+#    echo "(debug) bash switches='$-'"
+
+BGreen='\e[1;32m'       # Green
+BRed='\e[1;31m'         # Red
+Color_Off='\e[0m'       # Text Reset
+
+printf "${BGreen}   _________                         .__                .__        ${Color_Off}\n"
+printf "${BGreen}  /   _____/__ ________   ___________|  |  __ __  _____ |__| ____  ${Color_Off}\n"
+printf "${BGreen}  \_____  \|  |  \____ \_/ __ \_  __ \  | |  |  \/     \|  |/ ___\ ${Color_Off}\n"
+printf "${BGreen}  /        \  |  /  |_> >  ___/|  | \/  |_|  |  /  Y Y  \  \  \___ ${Color_Off}\n"
+printf "${BGreen} /_______  /____/|   __/ \___  >__|  |____/____/|__|_|  /__|\___  >${Color_Off}\n"
+printf "${BGreen}         \/      |__|        \/ http://superlumic.com \/        \/ ${Color_Off}\n\n"
+
+function setStatusMessage {
+    printf "${BGreen} --> $1 ${Color_Off}\n" 1>&2
+}
+
+function triggerError {
+    printf "${BRed} --> $1 ${Color_Off}\n" 1>&2
+    exit 1
+}
+
+# Check whether a command exists - returns 0 if it does, 1 if it does not
+function exists {
+  if command -v $1 >/dev/null 2>&1
+  then
+    return 0
+  else
+    return 1
+  fi
+}
+
+HomeScriptDir=~/.superlumic
+ScriptDir=/usr/local/superlumic/scripts
+LocalBinDir=/usr/local/bin
+RepoUrl=https://raw.githubusercontent.com/FlyingBinary/superlumic/fbmaster/scripts
+
+function getScript {
+    curl -s $RepoUrl/$1 > $HomeScriptDir/$1
+    chmod 755 $HomeScriptDir/$1
+    ln -fs $HomeScriptDir/$1 $HomeScriptDir/$1q
+}
+
+function copyScript {
+    sudo cp -fp $HomeScriptDir/$1 $ScriptDir
+    sudo ln -fs $ScriptDir/$1 $ScriptDir/$1q
+    sudo ln -fs $ScriptDir/$1 $LocalBinDir/$1
+    sudo ln -fs $ScriptDir/$1 $LocalBinDir/$1q
+}
+
+function install_clt {
+}
+
+function makeFullyQualified {
+    # Full url
+    if [[ $1 =~ ^.+\..+\/.+\..+$ ]]; then
+        if [[ $1 =~ ^http(?:s)*:\/\/.+$ ]]; then
+#            echo "(debug) repo '$repo' matches full url with scheme"
+            repo=$1
+            return 0
+        else
+#            echo "(debug) repo '$repo' matches full url without scheme"
+            repo="https://$1"
+            return 0
+        fi
+    fi
+    # Github name and role name
+    if [[ $1 =~ ^.+\/.+$ ]]; then
+        if [[ $1 =~ ^.+\.git$ ]]; then
+#            echo "(debug) repo '$repo' matches github name and role name with extension"
+            repo="https://github.com/$1"
+            return 0
+        else
+#            echo "(debug) repo '$repo' matches github name and role name without extension"
+            repo="https://github.com/$1.git"
+            return 0
+        fi
+    fi
+    # Github name only
+    if [[ $1 =~ ^[a-zA-Z0-9_\-]+$ ]]; then
+#        echo "(debug) repo '$repo' matches github name only"
+        repo="https://github.com/$1/superlumic-config.git"
+        return 0
+    fi
+    # Give up - in all other cases assume the provided string represents a usable url
+    # and leave the value as is
+#    echo "(debug) repo '$repo' doesn't match anything - given up"
+    repo=$1
+    return 1
+}
+
+repo=$1
+profile=$USER
+username=$profile
+if [ ! -z "$1" ]; then
+#    echo "(debug) "
+    makeFullyQualified $repo
+fi
+setStatusMessage "Using repo '$repo'"
+
+if [ ! -z "$2" ]; then
+    profile=$2
+fi
+
+if [ ! -z "$3" ]; then
+    username=$3
+fi
+
+admin=
+adminUsername=
+adminUID=
+adminRealname=
+adminPicture=
+
+
+if [ ! -z "$admin" ]; then
+    if [[ "$-" =~ .*s.* ]]; then
+        triggerError "Download script, then run, to enable user admin features"
+    fi
+    setStatusMessage "User admin features enabled"
+    source "/Volumes/Superlumic/admin.cfg"
+    mkdir -p $HomeScriptDir
+    getScript adminuser
+    getScript checkuser
+    getScript createadministrator
+    getScript listmembers
+    if $HomeScriptDir/checkuser "exists" "$adminUsername"; then
+        # We already created the admin user, and downgraded this user
+        # Restore admin (and therefore sudo) privilege for this user
+        setStatusMessage "Granting admin privilege"
+        $HomeScriptDir/adminuser "grant" "$username" "$adminUsername"
+    else
+        setStatusMessage "Creating admin user "
+        $HomeScriptDir/createadministrator "$adminUsername" "$adminUID" "$adminRealname" "$adminPicture"
+    fi
+fi
+
+if ! exists sudo; then
+    triggerError "Use downloader to set up sudo"
+fi
+
+
+
+setStatusMessage "Checking if we need to ask for a sudo password"
+
+sudo -v
+export ANSIBLE_ASK_SUDO_PASS=True
+
+setStatusMessage "Keep-alive: update existing sudo time stamp until we are finished"
+
+while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+
+export HOMEBREW_CASK_OPTS="--appdir=/Applications"
+
+if [[ ! -f "/Library/Developer/CommandLineTools/usr/bin/clang" ]]; then
+    setStatusMessage "Install the CLT"
+    install_clt
+fi
+
+# Install Ansible
+if ! exists pip; then
+    setStatusMessage "Install PIP"
+    sudo easy_install --quiet pip
+fi
+if ! exists ansible; then
+    setStatusMessage "Install Ansible"
+    pip install --upgrade setuptools --user python
+    sudo pip install -q ansible
+fi
+
+setStatusMessage "Create necessary folders"
+
+sudo mkdir -p /usr/local/superlumic
+sudo mkdir -p /usr/local/superlumic/roles
+sudo chmod -R g+rwx /usr/local
+sudo chgrp -R admin /usr/local
+
+if [ ! -z "$admin" ]; then
+    sudo mkdir -p /usr/local/superlumic/scripts
+    setStatusMessage "Copying scripts"
+
+    copyScript checkuser
+    copyScript adminuser
+    copyScript createadministrator
+    copyScript listmembers
+fi
+
+if [ -d "/usr/local/superlumic/osx-check" ]; then
+    setStatusMessage "Update OSX Config Check"
+    cd /usr/local/superlumic/osx-check
+    git pull -q
+else
+    setStatusMessage "Getting OSX Config Check"
+    git clone -q https://github.com/FlyingBinary/osx-config-check.git /usr/local/superlumic/osx-check
+    sudo ln -fs /usr/local/superlumic/osx-check/osx-check $LocalBinDir/osx-check
+fi
+
+if [ -d "/usr/local/superlumic/config" ]; then
+    setStatusMessage "Update your config from git"
+    cd /usr/local/superlumic/config
+    git pull -q
+else
+    if [ ! -z "$repo" ]; then
+        setStatusMessage "Getting your config from your fork"
+        git clone -q $repo /usr/local/superlumic/config
+    else
+        setStatusMessage "Getting the default config"
+        git clone -q https://github.com/FlyingBinary/superlumic-config.git /usr/local/superlumic/config
+    fi
+fi
+
+cd /usr/local/superlumic
+
+setStatusMessage "Create ansible.cfg"
+
+{ echo '[defaults]'; echo 'roles_path=/usr/local/superlumic/roles:/usr/local/superlumic/config/roles'; } > ansible.cfg
+
+setStatusMessage "Get all the required roles"
+
+ansible-galaxy install -f -r config/requirements.yml -p roles
+
+if [ -f "config/$profile.yml" ]; then
+    setStatusMessage "Running the ansible playbook for $profile"
+    ansible-playbook -i "localhost," config/$profile.yml
+else
+    if [ "travis" = "$profile" ]; then
+        setStatusMessage "Running the ansible playbook for $profile but use roderik.yml as fallback"
+        ansible-playbook -i "localhost," config/roderik.yml
+    else
+        triggerError "No playbook for $profile found"
+    fi
+fi
+
+if [ ! -z "$admin" ]; then
+    setStatusMessage "Revoking admin privilege"
+    $HomeScriptDir/adminuser "revoke" "$username" "$adminUsername"
+fi
+
+
+
+
+#!/bin/bash -v
+
 BGreen='\e[1;32m'       # Green
 BRed='\e[1;31m'         # Red
 Color_Off='\e[0m'       # Text Reset
@@ -84,7 +327,7 @@ sudo mkdir -p /usr/local/superlumic/roles
 sudo chmod -R g+rwx /usr/local
 sudo chgrp -R admin /usr/local
 
-exit 1
+#exit 1
 
 if [ -d "/usr/local/superlumic/config" ]; then
     setStatusMessage "Update your config from git"
