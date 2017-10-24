@@ -175,7 +175,7 @@ setStatusMessage "Create necessary folders"
 sudo mkdir -p /usr/local/superlinux
 sudo mkdir -p /usr/local/superlinux/roles
 sudo chmod -R g+rwx /usr/local
-sudo chgrp -R admin /usr/local
+sudo chgrp -R staff /usr/local
 
 if [ ! -z "$admin" ]; then
     sudo mkdir -p /usr/local/superlinux/scripts
