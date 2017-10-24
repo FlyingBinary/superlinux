@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+echo "Please enter root password"
 su root -c "apt-get install sudo; adduser adams sudo"
 echo "Please log out and back in for changes to take effect"
 echo
