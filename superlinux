@@ -187,7 +187,6 @@ if [ ! -z "$admin" ]; then
     copyScript listmembers
 fi
 
-exit 1
 
 if [ -d "/usr/local/superlinux/config" ]; then
     setStatusMessage "Update your config from git"
