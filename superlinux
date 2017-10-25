@@ -166,10 +166,13 @@ if ! exists git; then
     sudo apt-get install git-core
 fi
 
-# Install Ansible
+# Install Pip and Ansible
 if ! exists pip; then
     setStatusMessage "Install PIP"
     sudo easy_install --quiet pip
+else
+    # Upgrade pip
+    pip install -U pip setuptools
 fi
 if ! exists ansible; then
     setStatusMessage "Install Ansible"
