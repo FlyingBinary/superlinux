@@ -51,7 +51,7 @@ function copyScript {
 }
 
 function install_clt {
-    echo
+    sudo apt-get install build-essential
 }
 
 function makeFullyQualified {
@@ -159,10 +159,17 @@ while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 #        install_clt
 #    fi
 
+setStatusMessage "Update package manager"
+sudo apt-get update
+sudo apt-get upgrade
+
+setStatusMessage "Install the CLT"
+install_clt
+
+
 # Install Git
 if ! exists git; then
     setStatusMessage "Install Git"
-    sudo apt-get update
     sudo apt-get install git-core
 fi
 
